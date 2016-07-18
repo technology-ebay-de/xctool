@@ -326,6 +326,8 @@ NSDictionary *LaunchTaskAndCaptureOutputWithTimeoutAndRetry(NSTask *task, NSStri
     dispatch_time_t waitUntil = timeout == 0.0f ? DISPATCH_TIME_FOREVER : dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC));
     didTimeout = dispatch_group_wait(taskTimeoutGroup, waitUntil) != 0;
     if (didTimeout) {
+      fprintf(stderr, "'%s' (%d) timed out after %.f (%zd)\n", [description UTF8String], task.processIdentifier, timeout, retry);
+      fflush(stderr);
       kill(task.processIdentifier, SIGKILL);
     }
     [stdoutHandle closeFile];
