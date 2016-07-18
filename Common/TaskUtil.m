@@ -333,6 +333,8 @@ NSDictionary *LaunchTaskAndCaptureOutputWithTimeoutAndRetry(NSTask *task, NSStri
   }, YES);
 
   if (didTimeout && retry > 0) {
+    fprintf(stderr, "'%s' timed out after %.f (%zd)\n", [[task description] UTF8String], timeout, retry);
+    fflush(stderr);
     NSTask *retryTask = CreateTaskInSameProcessGroup();
     retryTask.arguments = task.arguments;
     retryTask.environment = task.environment;
