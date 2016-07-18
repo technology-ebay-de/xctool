@@ -334,12 +334,12 @@ NSDictionary *LaunchTaskAndCaptureOutputWithTimeoutAndRetry(NSTask *task, NSStri
     [stderrHandle closeFile];
   }, YES);
 
-  if (didTimeout && retry > 0) {
+  if (didTimeout && retry-- > 0) {
     NSTask *retryTask = CreateTaskInSameProcessGroup();
     retryTask.arguments = task.arguments;
     retryTask.environment = task.environment;
     retryTask.launchPath = task.launchPath;
-    return LaunchTaskAndCaptureOutputWithTimeoutAndRetry(retryTask, description, timeout, retry--);
+    return LaunchTaskAndCaptureOutputWithTimeoutAndRetry(retryTask, description, timeout, retry);
   }
 
   NSString *stdoutOutput = [stdoutArray componentsJoinedByString:@"\n"];
