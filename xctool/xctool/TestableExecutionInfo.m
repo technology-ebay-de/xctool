@@ -110,7 +110,9 @@
   }];
 
   NSString *settingsTaskDescription = [NSString stringWithFormat:@"running xcodebuild -showBuildSettings for '%@' target", target];
-  NSDictionary *output = LaunchTaskAndCaptureOutputWithTimeoutAndRetry(settingsTask, settingsTaskDescription, 10.0f, 5);
+  CGFloat timeout = [NSProcessInfo processInfo].environment[@"XCTOOL_RETRY_TIMEOUT"].floatValue ?: 10.0f;
+  CGFloat retry = [NSProcessInfo processInfo].environment[@"XCTOOL_RETRY_COUNT"].integerValue ?: 5;
+  NSDictionary *output = LaunchTaskAndCaptureOutputWithTimeoutAndRetry(settingsTask, settingsTaskDescription, timeout, retry);
   settingsTask = nil;
 
   NSDictionary *allSettings = BuildSettingsFromOutput(output[@"stdout"]);

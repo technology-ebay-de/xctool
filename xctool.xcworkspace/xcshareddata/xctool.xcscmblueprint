@@ -1,0 +1,30 @@
+{
+  "DVTSourceControlWorkspaceBlueprintPrimaryRemoteRepositoryKey" : "2CCA50D9C59B0DF3EAC1916AC312B31B6EE02015",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyRepositoryLocationsKey" : {
+
+  },
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyStatesKey" : {
+    "2CCA50D9C59B0DF3EAC1916AC312B31B6EE02015" : 0,
+    "EF242DA7B342E58DBD00B2A4257531CF2F3E79CE" : 0
+  },
+  "DVTSourceControlWorkspaceBlueprintIdentifierKey" : "50C017D7-1A98-476D-83CE-AC4631BDDE11",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyPathsKey" : {
+    "2CCA50D9C59B0DF3EAC1916AC312B31B6EE02015" : "xctool\/",
+    "EF242DA7B342E58DBD00B2A4257531CF2F3E79CE" : ""
+  },
+  "DVTSourceControlWorkspaceBlueprintNameKey" : "xctool",
+  "DVTSourceControlWorkspaceBlueprintVersion" : 204,
+  "DVTSourceControlWorkspaceBlueprintRelativePathToProjectKey" : "xctool.xcworkspace",
+  "DVTSourceControlWorkspaceBlueprintRemoteRepositoriesKey" : [
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "github.com:technology-ebay-de\/xctool.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "2CCA50D9C59B0DF3EAC1916AC312B31B6EE02015"
+    },
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "github.com:plu\/parallel_ios_tests.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "EF242DA7B342E58DBD00B2A4257531CF2F3E79CE"
+    }
+  ]
+}
