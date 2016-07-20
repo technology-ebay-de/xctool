@@ -113,6 +113,20 @@
   NSDictionary *output = LaunchTaskAndCaptureOutput(settingsTask, settingsTaskDescription);
   settingsTask = nil;
 
+  if (!output) {
+    *error = [NSString stringWithFormat:
+              @"Unable to read build settings for target '%@'.\n"
+              @"Output from `xcodebuild -showBuildSettings`:\n\n"
+              @"STDOUT:\n"
+              @"%@\n\n"
+              @"STDERR:\n"
+              @"%@\n\n",
+              target,
+              output[@"stdout"],
+              output[@"stderr"]];
+    return nil;
+  }
+
   NSDictionary *allSettings = BuildSettingsFromOutput(output[@"stdout"]);
 
   if ([allSettings count] > 1) {

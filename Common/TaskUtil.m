@@ -344,6 +344,10 @@ NSDictionary *LaunchTaskAndCaptureOutputWithTimeoutAndRetry(NSTask *task, NSStri
     return LaunchTaskAndCaptureOutputWithTimeoutAndRetry(retryTask, description, timeout, retry);
   }
 
+  if (didTimeout) {
+    return @{@"stdout": @"", @"stderr": @""};
+  }
+
   NSString *stdoutOutput = [stdoutArray componentsJoinedByString:@"\n"];
   NSString *stderrOutput = [stderrArray componentsJoinedByString:@"\n"];
 
