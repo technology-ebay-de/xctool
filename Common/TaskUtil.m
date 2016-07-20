@@ -286,7 +286,9 @@ void ReadOutputsAndFeedOuputLinesToBlockOnQueue(
 
 NSDictionary *LaunchTaskAndCaptureOutput(NSTask *task, NSString *description)
 {
-  return LaunchTaskAndCaptureOutputWithTimeoutAndRetry(task, description, 0.0f, 0);
+  CGFloat timeout = [[NSProcessInfo processInfo].environment[@"XCTOOL_RETRY_TIMEOUT"] floatValue];
+  CGFloat retry = [[NSProcessInfo processInfo].environment[@"XCTOOL_RETRY_COUNT"] integerValue];
+  return LaunchTaskAndCaptureOutputWithTimeoutAndRetry(task, description, timeout, retry);
 }
 
 NSDictionary *LaunchTaskAndCaptureOutputWithTimeoutAndRetry(NSTask *task, NSString *description, NSTimeInterval timeout, NSUInteger retry)
