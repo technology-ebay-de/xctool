@@ -21,4 +21,5 @@
 void KillSimulatorJobs();
 BOOL RemoveSimulatorContentAndSettings(SimulatorInfo *simulatorInfo, NSString **removedPath, NSString **errorMessage);
 BOOL ShutdownSimulator(SimulatorInfo *simulatorInfo, NSString **errorMessage);
+BOOL VerifySimulators(NSString **errorMessage);
 BOOL RunSimulatorBlockWithTimeout(dispatch_block_t block);

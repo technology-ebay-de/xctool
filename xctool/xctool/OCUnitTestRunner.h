@@ -34,7 +34,6 @@
   BOOL _newSimulatorInstance;
   BOOL _noResetSimulatorOnFailure;
   BOOL _freshInstall;
-  BOOL _waitForDebugger;
   NSInteger _testTimeout;
   NSArray *_reporters;
   NSDictionary *_framework;
@@ -70,7 +69,6 @@
                  newSimulatorInstance:(BOOL)newSimulatorInstance
             noResetSimulatorOnFailure:(BOOL)noResetSimulatorOnFailure
                          freshInstall:(BOOL)freshInstall
-                      waitForDebugger:(BOOL)waitForDebugger
                           testTimeout:(NSInteger)testTimeout
                             reporters:(NSArray *)reporters
                    processEnvironment:(NSDictionary *)processEnvironment;

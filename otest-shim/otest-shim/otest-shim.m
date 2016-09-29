@@ -14,8 +14,6 @@
 // limitations under the License.
 //
 
-#import <dlfcn.h>
-
 #import <Foundation/Foundation.h>
 
 #import <SenTestingKit/SenTestingKit.h>
@@ -112,11 +110,6 @@ static void XCTestLog_testSuiteDidStart(id self, SEL sel, XCTestSuiteRun *run)
   XCToolLog_testSuiteDidStart(testDescription);
 }
 
-static void XCTestLog_testSuiteWillStart(id self, SEL sel, XCTestSuite *suite)
-{
-  XCTestLog_testSuiteDidStart(self, sel, objc_msgSend(suite, @selector(testRun)));
-}
-
 static void SenTestLog_testSuiteDidStart(id self, SEL sel, NSNotification *notification)
 {
   SenTestRun *run = [notification run];
@@ -149,11 +142,6 @@ static void XCTestLog_testSuiteDidStop(id self, SEL sel, XCTestSuiteRun *run)
       kReporter_EndTestSuite_TestDurationKey: @([run testDuration]),
       kReporter_EndTestSuite_TotalDurationKey : @([run totalDuration]),
   }));
-}
-
-static void XCTestLog_testSuiteDidFinish(id self, SEL sel, XCTestSuite *suite)
-{
-  XCTestLog_testSuiteDidStop(self, sel, objc_msgSend(suite, @selector(testRun)));
 }
 
 static void SenTestLog_testSuiteDidStop(id self, SEL sel, NSNotification *notification)
@@ -189,11 +177,6 @@ static void XCTestLog_testCaseDidStart(id self, SEL sel, XCTestCaseRun *run)
   XCToolLog_testCaseDidStart(fullTestName);
 }
 
-static void XCTestLog_testCaseWillStart(id self, SEL sel, XCTestCase *testCase)
-{
-  XCTestLog_testCaseDidStart(self, sel, objc_msgSend(testCase, @selector(testRun)));
-}
-
 static void SenTestLog_testCaseDidStart(id self, SEL sel, NSNotification *notification)
 {
   SenTestRun *run = [notification run];
@@ -226,11 +209,6 @@ static void XCTestLog_testCaseDidStop(id self, SEL sel, XCTestCaseRun *run)
 {
   NSString *fullTestName = [[run test] name];
   XCToolLog_testCaseDidStop(fullTestName, @([run unexpectedExceptionCount]), @([run failureCount]), @([run totalDuration]));
-}
-
-static void XCTestLog_testCaseDidFinish(id self, SEL sel, XCTestCase *testCase)
-{
-  XCTestLog_testCaseDidStop(self, sel, objc_msgSend(testCase, @selector(testRun)));
 }
 
 static void SenTestLog_testCaseDidStop(id self, SEL sel, NSNotification *notification)
@@ -289,11 +267,6 @@ static void XCTestLog_testCaseDidFail(id self, SEL sel, XCTestCaseRun *run, NSSt
   });
 }
 
-static void XCTestLog_testCaseDidFailWithDescription(id self, SEL sel, XCTestCase *testCase, NSString *description, NSString *file, NSUInteger line)
-{
-  XCTestLog_testCaseDidFail(self, sel, objc_msgSend(testCase, @selector(testRun)), description, file, line);
-}
-
 static void SenTestLog_testCaseDidFail(id self, SEL sel, NSNotification *notification)
 {
 
@@ -324,37 +297,15 @@ static void XCPerformTestWithSuppressedExpectedAssertionFailures(id self, SEL or
   [currentThreadDict setObject:handler forKey:NSAssertionHandlerKey];
 
   if (timeout > 0) {
-    BOOL isSuite = [self isKindOfClass:NSClassFromString(@"XCTestCaseSuite")];
-    // If running in a suite, time out if we run longer than the combined timeouts of all tests + a fudge factor.
-    int64_t testCount = isSuite ? [[self tests] count] : 1;
-    // When in a suite, add a second per test to help account for the time required to switch tests in a suite.
-    int64_t fudgeFactor = isSuite ? MAX(testCount, 1) : 0;
-    int64_t interval = (timeout * testCount + fudgeFactor) * NSEC_PER_SEC ;
+    int64_t interval = timeout * NSEC_PER_SEC;
     NSString *queueName = [NSString stringWithFormat:@"test.timer.%p", self];
     dispatch_queue_t queue = dispatch_queue_create([queueName cStringUsingEncoding:NSASCIIStringEncoding], DISPATCH_QUEUE_SERIAL);
     dispatch_set_target_queue(queue, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0));
     dispatch_source_t source = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
     dispatch_source_set_timer(source, dispatch_time(DISPATCH_TIME_NOW, interval), 0, 0);
     dispatch_source_set_event_handler(source, ^{
-        if (isSuite) {
-            NSString *additionalInformation = @"";
-            if ([self respondsToSelector:@selector(testRun)]) {
-                XCTestRun *run = [self testRun];
-                NSUInteger executedTests = [run executionCount];
-                if (executedTests == 0) {
-                    additionalInformation = [NSString stringWithFormat:@"(No tests ran, likely stalled in +[%@ setUp])", [self name]];
-                } else if (executedTests == testCount) {
-                    additionalInformation = [NSString stringWithFormat:@"(All tests ran, likely stalled in +[%@ tearDown])", [self name]];
-                }
-            }
-            
-            [NSException raise:NSInternalInconsistencyException
-                        format:@"*** Suite %@ ran longer than combined test time limit: %lld second(s) %@", [self name], testCount * timeout, additionalInformation];
-            
-        } else {
-            [NSException raise:NSInternalInconsistencyException
-                        format:@"*** Test %@ ran longer than specified test time limit: %d second(s)", self, timeout];
-        }
+      [NSException raise:NSInternalInconsistencyException
+                  format:@"*** Test %@ ran longer than specified test time limit: %d second(s)", self, timeout];
     });
     dispatch_resume(source);
 
@@ -374,61 +325,16 @@ static void XCPerformTestWithSuppressedExpectedAssertionFailures(id self, SEL or
   [handler release];
 }
 
-static void XCWaitForDebuggerIfNeeded()
-{
-  static dispatch_once_t onceToken;
-  dispatch_once(&onceToken, ^{
-    NSDictionary *env = [[NSProcessInfo processInfo] environment];
-    BOOL waitForDebugger = [env[@"XCTOOL_WAIT_FOR_DEBUGGER"] isEqualToString:@"YES"];
-    if (waitForDebugger) {
-      int pid = [[NSProcessInfo processInfo] processIdentifier];
-      NSString *beginMessage = [NSString stringWithFormat:@"Waiting for debugger to be attached to pid '%d' ...", pid];
-      dispatch_sync(EventQueue(), ^{
-        PrintJSON(EventDictionaryWithNameAndContent(
-          kReporter_Events_BeginStatus,
-          @{
-            kReporter_BeginStatus_MessageKey : beginMessage,
-            kReporter_BeginStatus_LevelKey : @"Info"
-          }
-        ));
-      });
-
-      // Halt process execution until a debugger is attached
-      raise(SIGSTOP);
-
-      NSString *endMessage = [NSString stringWithFormat:@"Debugger was successfully attached to pid '%d'.", pid];
-      dispatch_sync(EventQueue(), ^{
-        PrintJSON(EventDictionaryWithNameAndContent(
-          kReporter_Events_EndStatus,
-          @{
-            kReporter_BeginStatus_MessageKey : endMessage,
-            kReporter_BeginStatus_LevelKey : @"Info"
-          }
-        ));
-      });
-    }
-  });
-}
-
 static void SenTestCase_performTest(id self, SEL sel, id arg1)
 {
   SEL originalSelector = @selector(__SenTestCase_performTest:);
-  XCWaitForDebuggerIfNeeded();
   XCPerformTestWithSuppressedExpectedAssertionFailures(self, originalSelector, arg1);
 }
 
 static void XCTestCase_performTest(id self, SEL sel, id arg1)
 {
   SEL originalSelector = @selector(__XCTestCase_performTest:);
-  XCWaitForDebuggerIfNeeded();
   XCPerformTestWithSuppressedExpectedAssertionFailures(self, originalSelector, arg1);
-}
-
-static void XCTestCaseSuite_performTest(id self, SEL sel, id arg1)
-{
-    SEL originalSelector = @selector(__XCTestCaseSuite_performTest:);
-    XCWaitForDebuggerIfNeeded();
-    XCPerformTestWithSuppressedExpectedAssertionFailures(self, originalSelector, arg1);
 }
 
 #pragma mark - _enableSymbolication
@@ -488,126 +394,80 @@ static void PrintNewlineAndCloseFDs()
 
 #pragma mark - Entry
 
-static void SwizzleXCTestMethodsIfAvailable()
+static const char *DyldImageStateChangeHandler(enum dyld_image_states state,
+                                               uint32_t infoCount,
+                                               const struct dyld_image_info info[])
 {
-  Class testLogClass = NSClassFromString(@"XCTestLog");
+  for (uint32_t i = 0; i < infoCount; i++) {
+    // Sometimes the image path will be something like...
+    //   '.../SenTestingKit.framework/SenTestingKit'
+    // Other times it could be...
+    //   '.../SenTestingKit.framework/Versions/A/SenTestingKit'
+    if (strstr(info[i].imageFilePath, "SenTestingKit.framework") != NULL) {
+      // Since the 'SenTestLog' class now exists, we can swizzle it!
+      XTSwizzleClassSelectorForFunction(NSClassFromString(@"SenTestLog"),
+                                        @selector(testSuiteDidStart:),
+                                        (IMP)SenTestLog_testSuiteDidStart);
+      XTSwizzleClassSelectorForFunction(NSClassFromString(@"SenTestLog"),
+                                        @selector(testSuiteDidStop:),
+                                        (IMP)SenTestLog_testSuiteDidStop);
+      XTSwizzleClassSelectorForFunction(NSClassFromString(@"SenTestLog"),
+                                        @selector(testCaseDidStart:),
+                                        (IMP)SenTestLog_testCaseDidStart);
+      XTSwizzleClassSelectorForFunction(NSClassFromString(@"SenTestLog"),
+                                        @selector(testCaseDidStop:),
+                                        (IMP)SenTestLog_testCaseDidStop);
+      XTSwizzleClassSelectorForFunction(NSClassFromString(@"SenTestLog"),
+                                        @selector(testCaseDidFail:),
+                                        (IMP)SenTestLog_testCaseDidFail);
+      XTSwizzleSelectorForFunction(NSClassFromString(@"SenTestCase"),
+                                   @selector(performTest:),
+                                   (IMP)SenTestCase_performTest);
+      if (__testScope) {
+        XTSwizzleClassSelectorForFunction(NSClassFromString(@"SenTestProbe"),
+                                          @selector(testScope),
+                                          (IMP)SenTestProbe_testScope);
+      }
 
-  if (testLogClass == nil) {
-    // Looks like the XCTest framework has not been loaded yet.
-    return;
-  }
-
-  static dispatch_once_t onceToken;
-  dispatch_once(&onceToken, ^{
-    if ([testLogClass instancesRespondToSelector:@selector(testSuiteWillStart:)]) {
-      // Swizzle methods for Xcode 8.
-      XTSwizzleSelectorForFunction(testLogClass,
-                                   @selector(testSuiteWillStart:),
-                                   (IMP)XCTestLog_testSuiteWillStart);
-      XTSwizzleSelectorForFunction(testLogClass,
-                                   @selector(testSuiteDidFinish:),
-                                   (IMP)XCTestLog_testSuiteDidFinish);
-      XTSwizzleSelectorForFunction(testLogClass,
-                                   @selector(testCaseWillStart:),
-                                   (IMP)XCTestLog_testCaseWillStart);
-      XTSwizzleSelectorForFunction(testLogClass,
-                                   @selector(testCaseDidFinish:),
-                                   (IMP)XCTestLog_testCaseDidFinish);
-      XTSwizzleSelectorForFunction(testLogClass,
-                                   @selector(testCase:didFailWithDescription:inFile:atLine:),
-                                   (IMP)XCTestLog_testCaseDidFailWithDescription);
-    } else {
-      // Swizzle methods for Xcode 7 and earlier.
-      XTSwizzleSelectorForFunction(testLogClass,
+      NSDictionary *frameworkInfo = FrameworkInfoForExtension(@"octest");
+      ApplyDuplicateTestNameFix([frameworkInfo objectForKey:kTestingFrameworkTestProbeClassName],
+                                [frameworkInfo objectForKey:kTestingFrameworkTestSuiteClassName]);
+      XTApplySenTestClassEnumeratorFix();
+      XTApplySenTestCaseInvokeTestFix();
+      XTApplySenIsSuperclassOfClassPerformanceFix();
+    } else if (strstr(info[i].imageFilePath, "XCTest.framework") != NULL) {
+      // Since the 'XCTestLog' class now exists, we can swizzle it!
+      XTSwizzleSelectorForFunction(NSClassFromString(@"XCTestLog"),
                                    @selector(testSuiteDidStart:),
                                    (IMP)XCTestLog_testSuiteDidStart);
-      XTSwizzleSelectorForFunction(testLogClass,
+      XTSwizzleSelectorForFunction(NSClassFromString(@"XCTestLog"),
                                    @selector(testSuiteDidStop:),
                                    (IMP)XCTestLog_testSuiteDidStop);
-      XTSwizzleSelectorForFunction(testLogClass,
+      XTSwizzleSelectorForFunction(NSClassFromString(@"XCTestLog"),
                                    @selector(testCaseDidStart:),
                                    (IMP)XCTestLog_testCaseDidStart);
-      XTSwizzleSelectorForFunction(testLogClass,
+      XTSwizzleSelectorForFunction(NSClassFromString(@"XCTestLog"),
                                    @selector(testCaseDidStop:),
                                    (IMP)XCTestLog_testCaseDidStop);
-      XTSwizzleSelectorForFunction(testLogClass,
+      XTSwizzleSelectorForFunction(NSClassFromString(@"XCTestLog"),
                                    @selector(testCaseDidFail:withDescription:inFile:atLine:),
                                    (IMP)XCTestLog_testCaseDidFail);
-      XTSwizzleSelectorForFunction(NSClassFromString(@"XCTestCaseSuite"),
+      XTSwizzleSelectorForFunction(NSClassFromString(@"XCTestCase"),
                                    @selector(performTest:),
-                                   (IMP)XCTestCaseSuite_performTest);
+                                   (IMP)XCTestCase_performTest);
+      if ([NSClassFromString(@"XCTestCase") respondsToSelector:@selector(_enableSymbolication)]) {
+        // Disable symbolication thing on xctest 7 because it sometimes takes forever.
+        XTSwizzleClassSelectorForFunction(NSClassFromString(@"XCTestCase"),
+                                          @selector(_enableSymbolication),
+                                          (IMP)XCTestCase__enableSymbolication);
+      }
+      NSDictionary *frameworkInfo = FrameworkInfoForExtension(@"xctest");
+      ApplyDuplicateTestNameFix([frameworkInfo objectForKey:kTestingFrameworkTestProbeClassName],
+                                [frameworkInfo objectForKey:kTestingFrameworkTestSuiteClassName]);
     }
-    XTSwizzleSelectorForFunction(NSClassFromString(@"XCTestCase"),
-                                 @selector(performTest:),
-                                 (IMP)XCTestCase_performTest);
-    if ([NSClassFromString(@"XCTestCase") respondsToSelector:@selector(_enableSymbolication)]) {
-      // Disable symbolication thing on xctest 7 because it sometimes takes forever.
-      XTSwizzleClassSelectorForFunction(NSClassFromString(@"XCTestCase"),
-                                        @selector(_enableSymbolication),
-                                        (IMP)XCTestCase__enableSymbolication);
-    }
-    NSDictionary *frameworkInfo = FrameworkInfoForExtension(@"xctest");
-    ApplyDuplicateTestNameFix([frameworkInfo objectForKey:kTestingFrameworkTestProbeClassName],
-                              [frameworkInfo objectForKey:kTestingFrameworkTestSuiteClassName]);
-  });
-}
-
-static void SwizzleSentTestMethodsIfAvailable()
-{
-  Class testLogClass = NSClassFromString(@"SenTestLog");
-
-  if (testLogClass == nil) {
-    // Looks like the SenTesting framework has not been loaded yet.
-    return;
   }
 
-  static dispatch_once_t onceToken;
-  dispatch_once(&onceToken, ^{
-    XTSwizzleClassSelectorForFunction(testLogClass,
-                                      @selector(testSuiteDidStart:),
-                                      (IMP)SenTestLog_testSuiteDidStart);
-    XTSwizzleClassSelectorForFunction(testLogClass,
-                                      @selector(testSuiteDidStop:),
-                                      (IMP)SenTestLog_testSuiteDidStop);
-    XTSwizzleClassSelectorForFunction(testLogClass,
-                                      @selector(testCaseDidStart:),
-                                      (IMP)SenTestLog_testCaseDidStart);
-    XTSwizzleClassSelectorForFunction(testLogClass,
-                                      @selector(testCaseDidStop:),
-                                      (IMP)SenTestLog_testCaseDidStop);
-    XTSwizzleClassSelectorForFunction(testLogClass,
-                                      @selector(testCaseDidFail:),
-                                      (IMP)SenTestLog_testCaseDidFail);
-    XTSwizzleSelectorForFunction(testLogClass,
-                                 @selector(performTest:),
-                                 (IMP)SenTestCase_performTest);
-    if (__testScope) {
-      XTSwizzleClassSelectorForFunction(NSClassFromString(@"SenTestProbe"),
-                                        @selector(testScope),
-                                        (IMP)SenTestProbe_testScope);
-    }
-
-    NSDictionary *frameworkInfo = FrameworkInfoForExtension(@"octest");
-    ApplyDuplicateTestNameFix([frameworkInfo objectForKey:kTestingFrameworkTestProbeClassName],
-                              [frameworkInfo objectForKey:kTestingFrameworkTestSuiteClassName]);
-    XTApplySenTestClassEnumeratorFix();
-    XTApplySenTestCaseInvokeTestFix();
-    XTApplySenIsSuperclassOfClassPerformanceFix();
-  });
-}
-
-static void Swizzle()
-{
-  SwizzleXCTestMethodsIfAvailable();
-  SwizzleSentTestMethodsIfAvailable();
-}
-
-static id NSBundle_loadAndReturnError(id self, SEL sel, NSError **error)
-{
-  SEL originalSelector = @selector(__NSBundle_loadAndReturnError:);
-  id result = objc_msgSend(self, originalSelector, error);
-  SwizzleXCTestMethodsIfAvailable();
-  return result;
+  return NULL;
 }
 
 void handle_signal(int signal)
@@ -639,9 +499,12 @@ __attribute__((constructor)) static void EntryPoint()
   sa_abort.sa_handler = &handle_signal;
   sigaction(SIGABRT, &sa_abort, NULL);
 
-  // Let's register to get notified when libraries are initialized
-  XTSwizzleSelectorForFunction([NSBundle class], @selector(loadAndReturnError:), (IMP)NSBundle_loadAndReturnError);
-  Swizzle();
+  // We need to swizzle SenTestLog (part of SenTestingKit), but the test bundle
+  // which links SenTestingKit hasn't been loaded yet.  Let's register to get
+  // notified when libraries are initialized and we'll watch for SenTestingKit.
+  dyld_register_image_state_change_handler(dyld_image_state_initialized,
+                                           NO,
+                                           DyldImageStateChangeHandler);
 
   // Unset so we don't cascade into any other process that might be spawned.
   unsetenv("DYLD_INSERT_LIBRARIES");

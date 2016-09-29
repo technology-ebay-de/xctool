@@ -50,6 +50,8 @@
 - (NSString *)simulatedSdkName;
 - (NSNumber *)launchTimeout;
 
+- (DTiPhoneSimulatorSystemRoot *)systemRootForSimulatedSdk;
+
 - (NSMutableDictionary *)simulatorLaunchEnvironment;
 
 - (NSString *)testHostPath;

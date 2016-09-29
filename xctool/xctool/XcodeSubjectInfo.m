@@ -824,9 +824,8 @@ containsFilesModifiedSince:(NSDate *)sinceDate
     NSString *error = nil;
     NSDictionary *settings = buildSettingsWithAction(action, &error);
 
-    if (settings.count >= 1) {
-      NSArray *keys = [settings allKeys];
-      return @{keys[0]: settings[keys[0]]};
+    if (settings.count == 1) {
+      return settings;
     }
 
     if (error) {
