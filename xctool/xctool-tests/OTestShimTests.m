@@ -121,6 +121,7 @@ static NSTask *OtestShimTask(NSString *platformName,
                                                                newSimulatorInstance:NO
                                                           noResetSimulatorOnFailure:NO
                                                                        freshInstall:NO
+                                                                    waitForDebugger:NO
                                                                         testTimeout:1
                                                                           reporters:@[]
                                                                  processEnvironment:@{}];
@@ -228,33 +229,9 @@ static NSDictionary *ExtractEvent(NSArray *events, NSString *eventType)
 
 @implementation OTestShimTests
 
-- (void)testSenTestingKitAssertionFailuresInIOSLogicTestsAreNotSilent
++ (void)setUp
 {
-  if (ToolchainIsXcode7OrBetter()) {
-    // octest isn't supported in Xcode 7
-    return;
-  }
-
-  NSString *bundlePath = TEST_DATA @"tests-ios-test-bundle/SenTestingKit_Assertion.octest";
-  NSString *targetName = @"SenTestingKit_Assertion";
-  NSString *settingsPath = TEST_DATA @"TestProject-Assertion-SenTestingKit_Assertion-showBuildSettings.txt";
-  NSArray *testList = @[ @"SenTestingKit_Assertion/testAssertionFailure" ];
-  NSString *methodName = @"-[SenTestingKit_Assertion testAssertionFailure]";
-
-  NSArray *allTests = AllTestCasesInTestBundleIOS(bundlePath);
-  NSString *otestShimOutputPath;
-  NSTask *task = OtestShimTaskIOS(settingsPath, targetName, bundlePath, testList, allTests, &otestShimOutputPath);
-  NSArray *events = RunOtestAndParseResult(task, otestShimOutputPath);
-
-  NSDictionary *testEndEvent = ExtractEvent(events, kReporter_Events_EndTest);
-  assertThat(testEndEvent, hasKey(@"exceptions"));
-  NSArray *exceptions = testEndEvent[@"exceptions"];
-  assertThat(exceptions, hasCountOf(1));
-  NSDictionary *exception = exceptions[0];
-  assertThat(exception, hasKey(@"reason"));
-  NSString *reason = exception[@"reason"];
-  assertThat(reason, containsAssertionFailureFromMethod(methodName));
-  assertThat(reason, containsString(@"[GOOD1]"));
+  [SimulatorInfo prepare];
 }
 
 - (void)testXCTestAssertionFailuresInIOSLogicTestsAreNotSilent
@@ -285,33 +262,6 @@ static NSDictionary *ExtractEvent(NSArray *events, NSString *eventType)
   assertThat(reason, containsString(@"[GOOD1]"));
 }
 
-- (void)testSenTestingKitExpectedAssertionFailuresInIOSLogicTestsAreSilent
-{
-  if (ToolchainIsXcode7OrBetter()) {
-    // octest isn't supported in Xcode 7
-    return;
-  }
-
-  NSString *bundlePath = TEST_DATA @"tests-ios-test-bundle/SenTestingKit_Assertion.octest";
-  NSString *targetName = @"SenTestingKit_Assertion";
-  NSString *settingsPath = TEST_DATA @"TestProject-Assertion-SenTestingKit_Assertion-showBuildSettings.txt";
-  NSArray *testList = @[ @"SenTestingKit_Assertion/testExpectedAssertionIsSilent" ];
-  NSString *methodName = @"-[SenTestingKit_Assertion testExpectedAssertionIsSilent]";
-
-  NSArray *allTests = AllTestCasesInTestBundleIOS(bundlePath);
-  NSString *otestShimOutputPath;
-  NSTask *task = OtestShimTaskIOS(settingsPath, targetName, bundlePath, testList, allTests, &otestShimOutputPath);
-  NSArray *events = RunOtestAndParseResult(task, otestShimOutputPath);
-
-  NSDictionary *testBeginEvent = ExtractEvent(events, kReporter_Events_BeginTest);
-  assertThat(testBeginEvent, hasKey(@"test"));
-  assertThat(testBeginEvent[@"test"], is(methodName));
-  NSDictionary *testOutputEvent = ExtractEvent(events, kReporter_Events_SimulatorOuput);
-  assertThat(testOutputEvent, hasKey(@"output"));
-  assertThat(testOutputEvent[@"output"], isNot(containsAssertionFailureFromMethod(methodName)));
-  assertThat(testOutputEvent[@"output"], containsString(@"[GOOD1]"));
-}
-
 - (void)testXCTestExpectedAssertionFailuresInIOSLogicTestsAreSilent
 {
   if (!HasXCTestFramework()) {
@@ -336,33 +286,6 @@ static NSDictionary *ExtractEvent(NSArray *events, NSString *eventType)
   assertThat(testOutputEvent, hasKey(@"output"));
   assertThat(testOutputEvent[@"output"], isNot(containsAssertionFailureFromMethod(methodName)));
   assertThat(testOutputEvent[@"output"], containsString(@"[GOOD1]"));
-}
-
-- (void)testSenTestingKitMissingExpectedAssertionsAreNotSilent
-{
-  if (ToolchainIsXcode7OrBetter()) {
-    // octest isn't supported in Xcode 7
-    return;
-  }
-
-  NSString *bundlePath = TEST_DATA @"tests-ios-test-bundle/SenTestingKit_Assertion.octest";
-  NSString *targetName = @"SenTestingKit_Assertion";
-  NSString *settingsPath = TEST_DATA @"TestProject-Assertion-SenTestingKit_Assertion-showBuildSettings.txt";
-  NSArray *testList = @[ @"SenTestingKit_Assertion/testExpectedAssertionMissingIsNotSilent" ];
-
-  NSArray *allTests = AllTestCasesInTestBundleIOS(bundlePath);
-  NSString *otestShimOutputPath;
-  NSTask *task = OtestShimTaskIOS(settingsPath, targetName, bundlePath, testList, allTests, &otestShimOutputPath);
-  NSArray *events = RunOtestAndParseResult(task, otestShimOutputPath);
-
-  NSDictionary *testEndEvent = ExtractEvent(events, kReporter_Events_EndTest);
-  assertThat(testEndEvent, hasKey(@"exceptions"));
-  NSArray *exceptions = testEndEvent[@"exceptions"];
-  assertThat(exceptions, hasCountOf(1));
-  NSDictionary *exception = exceptions[0];
-  assertThat(exception, hasKey(@"reason"));
-  NSString *reason = exception[@"reason"];
-  assertThat(reason, containsString(@"[GOOD1]"));
 }
 
 - (void)testXCTestMissingExpectedAssertionsAreNotSilent
@@ -419,27 +342,47 @@ static NSDictionary *ExtractEvent(NSArray *events, NSString *eventType)
   assertThat(@(simOutputEvents.count), greaterThan(@10));
 }
 
-- (void)testSenTestingKitExceptionIsThrownWhenTestTimeoutIsHit
+- (void)testXCTestExceptionIsThrownWhenSuiteTimeoutIsHitInSetup
 {
-  if (ToolchainIsXcode7OrBetter()) {
-    // octest isn't supported in Xcode 7
-    return;
-  }
-
-  NSString *bundlePath = TEST_DATA @"tests-ios-test-bundle/TestProject-LibraryTests.octest";
-  NSString *targetName = @"TestProject-LibraryTests";
-  NSString *settingsPath = TEST_DATA @"TestProject-Library-TestProject-LibraryTests-showBuildSettings.txt";
-  NSArray *testList = @[ @"SomeTests/testTimeout" ];
-
+  NSString *bundlePath = TEST_DATA @"tests-ios-test-bundle/TestProject-Library-XCTest-iOSTests.xctest";
+  NSString *targetName = @"TestProject-Library-XCTest-iOSTests";
+  NSString *settingsPath = TEST_DATA @"TestProject-Library-XCTest-iOS-TestProject-Library-XCTest-iOSTests-showBuildSettings-iphonesimulator.txt";
+  NSArray *testList = @[ @"SetupTimeoutTests/testNothing" ];
+  
   NSArray *allTests = AllTestCasesInTestBundleIOS(bundlePath);
   NSString *otestShimOutputPath;
   NSTask *task = OtestShimTaskIOS(settingsPath, targetName, bundlePath, testList, allTests, &otestShimOutputPath);
   NSArray *events = RunOtestAndParseResult(task, otestShimOutputPath);
-
+  
   NSDictionary *testOutputEvent = ExtractEvent(events, kReporter_Events_SimulatorOuput);
   assertThat(testOutputEvent, hasKey(@"output"));
   NSString *testOutput = testOutputEvent[@"output"];
-  assertThat(testOutput, containsString(@"Test -[SomeTests testTimeout] ran longer than specified test time limit: 1 second(s)"));
+  assertThat(testOutput, containsString(@"Suite SetupTimeoutTests ran longer than combined test time limit: 1 second(s)"));
+  if (ToolchainIsXcode7OrBetter()) {
+    assertThat(testOutput, containsString(@"(No tests ran, likely stalled in +[SetupTimeoutTests setUp])")); 
+  }
+}
+
+
+- (void)testXCTestExceptionIsThrownWhenSuiteTimeoutIsHitInTeardown
+{
+  NSString *bundlePath = TEST_DATA @"tests-ios-test-bundle/TestProject-Library-XCTest-iOSTests.xctest";
+  NSString *targetName = @"TestProject-Library-XCTest-iOSTests";
+  NSString *settingsPath = TEST_DATA @"TestProject-Library-XCTest-iOS-TestProject-Library-XCTest-iOSTests-showBuildSettings-iphonesimulator.txt";
+  NSArray *testList = @[ @"TeardownTimeoutTests/testNothing" ];
+  
+  NSArray *allTests = AllTestCasesInTestBundleIOS(bundlePath);
+  NSString *otestShimOutputPath;
+  NSTask *task = OtestShimTaskIOS(settingsPath, targetName, bundlePath, testList, allTests, &otestShimOutputPath);
+  NSArray *events = RunOtestAndParseResult(task, otestShimOutputPath);
+  
+  NSDictionary *testOutputEvent = ExtractEvent(events, kReporter_Events_SimulatorOuput);
+  assertThat(testOutputEvent, hasKey(@"output"));
+  NSString *testOutput = testOutputEvent[@"output"];
+  assertThat(testOutput, containsString(@"Suite TeardownTimeoutTests ran longer than combined test time limit: 1 second(s)"));
+  if (ToolchainIsXcode7OrBetter()) {
+    assertThat(testOutput, containsString(@"(All tests ran, likely stalled in +[TeardownTimeoutTests tearDown])"));
+  }
 }
 
 - (void)testXCTestExceptionIsThrownWhenTestTimeoutIsHit
@@ -447,7 +390,7 @@ static NSDictionary *ExtractEvent(NSArray *events, NSString *eventType)
   NSString *bundlePath = TEST_DATA @"tests-ios-test-bundle/TestProject-Library-XCTest-iOSTests.xctest";
   NSString *targetName = @"TestProject-Library-XCTest-iOSTests";
   NSString *settingsPath = TEST_DATA @"TestProject-Library-XCTest-iOS-TestProject-Library-XCTest-iOSTests-showBuildSettings-iphonesimulator.txt";
-  NSArray *testList = @[ @"SomeTests/testTimeout" ];
+  NSArray *testList = @[ @"TimeoutTests/testTimeout" ];
 
   NSArray *allTests = AllTestCasesInTestBundleIOS(bundlePath);
   NSString *otestShimOutputPath;
@@ -457,7 +400,7 @@ static NSDictionary *ExtractEvent(NSArray *events, NSString *eventType)
   NSDictionary *testOutputEvent = ExtractEvent(events, kReporter_Events_SimulatorOuput);
   assertThat(testOutputEvent, hasKey(@"output"));
   NSString *testOutput = testOutputEvent[@"output"];
-  assertThat(testOutput, containsString(@"Test -[SomeTests testTimeout] ran longer than specified test time limit: 1 second(s)"));
+  assertThat(testOutput, containsString(@"Test -[TimeoutTests testTimeout] ran longer than specified test time limit: 1 second(s)"));
 }
 
 @end

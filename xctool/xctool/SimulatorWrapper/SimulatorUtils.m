@@ -20,7 +20,6 @@
 
 #import "SimDevice.h"
 #import "SimulatorInfo.h"
-#import "SimVerifier.h"
 #import "XCToolUtil.h"
 
 static const dispatch_time_t kDefaultSimulatorBlockTimeout = 30;
@@ -162,23 +161,6 @@ BOOL RemoveSimulatorContentAndSettings(SimulatorInfo *simulatorInfo, NSString **
   return erased;
 }
 
-BOOL VerifySimulators(NSString **errorMessage)
-{
-  if (!NSClassFromString(@"SimVerifier")) {
-    *errorMessage = [NSString stringWithFormat:@"SimVerifier class is not available."];
-    return NO;
-  }
-
-  NSError *error = nil;
-  BOOL result = [[SimVerifier sharedVerifier] verifyAllWithError:&error];
-  if (!result || error) {
-    *errorMessage = [NSString stringWithFormat:@"%@; %@.",
-                     error.localizedDescription ?: @"Unknown error.",
-                     [error.userInfo[NSUnderlyingErrorKey] localizedDescription] ?: @""];
-  }
-  return result;
-}
-
 BOOL ShutdownSimulator(SimulatorInfo *simulatorInfo, NSString **errorMessage)
 {
   SimDevice *simulatedDevice = [simulatorInfo simulatedDevice];
@@ -224,7 +206,7 @@ BOOL ShutdownSimulator(SimulatorInfo *simulatorInfo, NSString **errorMessage)
 
 BOOL RunSimulatorBlockWithTimeout(dispatch_block_t block)
 {
-  dispatch_time_t timeout = IsRunningUnderTest() ? 5 : kDefaultSimulatorBlockTimeout;
+  dispatch_time_t timeout = (IsRunningUnderTest() && !IsRunningOnCISystem()) ? 5 : kDefaultSimulatorBlockTimeout;
   dispatch_time_t timer = dispatch_time(DISPATCH_TIME_NOW, timeout * NSEC_PER_SEC);
   dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
   dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
